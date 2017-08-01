@@ -1,0 +1,57 @@
+drop database if exists test;
+create database test;
+use test;
+drop table if exists test;
+CREATE TABLE test (
+  `t1` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `t2` int(10) unsigned NOT NULL,
+  `t3` int(10) unsigned NOT NULL,
+  `t4` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`t1`),
+  KEY `i1` (`t2`,`t3`),
+  KEY `i2` (`t2`,`t4`)
+) ENGINE=TokuDB CHARSET=latin1;
+
+drop procedure if exists e;
+delimiter /;
+create procedure e(x int)
+foo: loop
+  if x = 0 then
+    leave foo;
+  end if;
+	insert into test values (null, floor(rand()*10), if(rand() > .5, 1, 0), floor(rand()*100000));
+  set x = x-1;
+end loop foo/
+delimiter ;/
+call e(10000);
+
+analyze table test;
+
+#select "Dropping indexes i1, i2...";
+alter table test drop index i1, drop index i2;
+
+#select "Adding indexes, hot...";
+create index i1 on test (t2, t3);
+create index i2 on test (t2, t4);
+
+#select "should use key=i2";
+explain select * from test where t2 = 5 and t4 = 1;
+
+#select "even after analyze... (background=0, mode=standard)";
+set session tokudb_analyze_in_background=0;
+set session tokudb_analyze_mode=TOKUDB_ANALYZE_STANDARD;
+analyze table test;
+#select "should use key=i2";
+explain select * from test where t2 = 5 and t4 = 1;
+
+#select "even after analyze recount rows... (background=0, mode=standard)";
+set session tokudb_analyze_in_background=0;
+set session tokudb_analyze_mode=TOKUDB_ANALYZE_RECOUNT_ROWS;
+analyze table test;
+#select "should use key=i2";
+explain select * from test where t2 = 5 and t4 = 1;
+
+#select "even after optimize...";
+optimize table test;
+#select "should use key=i2";
+explain select * from test where t2 = 5 and t4 = 1;

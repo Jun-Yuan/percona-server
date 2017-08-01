@@ -1,0 +1,67 @@
+drop database if exists test;
+create database test;
+use test;
+drop table if exists test;
+Warnings:
+Note	1051	Unknown table 'test.test'
+CREATE TABLE test (
+`t1` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`t2` int(10) unsigned NOT NULL,
+`t3` int(10) unsigned NOT NULL,
+`t4` int(10) unsigned NOT NULL,
+PRIMARY KEY (`t1`),
+KEY `i1` (`t2`,`t3`),
+KEY `i2` (`t2`,`t4`)
+) ENGINE=TokuDB CHARSET=latin1;
+drop procedure if exists e;
+Warnings:
+Note	1305	PROCEDURE test.e does not exist
+create procedure e(x int)
+foo: loop
+if x = 0 then
+leave foo;
+end if;
+insert into test values (null, floor(rand()*10), if(rand() > .5, 1, 0), floor(rand()*100000));
+set x = x-1;
+end loop foo/
+call e(10000);
+analyze table test;
+Table	Op	Msg_type	Msg_text
+test.test	analyze	status	OK
+alter table test drop index i1, drop index i2;
+create index i1 on test (t2, t3);
+create index i2 on test (t2, t4);
+explain select * from test where t2 = 5 and t4 = 1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	test	NULL	ref	i1,i2	i2	8	const,const	1	100.00	NULL
+Warnings:
+Note	1003	/* select#1 */ select `test`.`test`.`t1` AS `t1`,`test`.`test`.`t2` AS `t2`,`test`.`test`.`t3` AS `t3`,`test`.`test`.`t4` AS `t4` from `test`.`test` where ((`test`.`test`.`t4` = 1) and (`test`.`test`.`t2` = 5))
+set session tokudb_analyze_in_background=0;
+set session tokudb_analyze_mode=TOKUDB_ANALYZE_STANDARD;
+analyze table test;
+Table	Op	Msg_type	Msg_text
+test.test	analyze	status	OK
+explain select * from test where t2 = 5 and t4 = 1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	test	NULL	ref	i1,i2	i2	8	const,const	1	100.00	NULL
+Warnings:
+Note	1003	/* select#1 */ select `test`.`test`.`t1` AS `t1`,`test`.`test`.`t2` AS `t2`,`test`.`test`.`t3` AS `t3`,`test`.`test`.`t4` AS `t4` from `test`.`test` where ((`test`.`test`.`t4` = 1) and (`test`.`test`.`t2` = 5))
+set session tokudb_analyze_in_background=0;
+set session tokudb_analyze_mode=TOKUDB_ANALYZE_RECOUNT_ROWS;
+analyze table test;
+Table	Op	Msg_type	Msg_text
+test.test	analyze	status	OK
+explain select * from test where t2 = 5 and t4 = 1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	test	NULL	ref	i1,i2	i2	8	const,const	1	100.00	NULL
+Warnings:
+Note	1003	/* select#1 */ select `test`.`test`.`t1` AS `t1`,`test`.`test`.`t2` AS `t2`,`test`.`test`.`t3` AS `t3`,`test`.`test`.`t4` AS `t4` from `test`.`test` where ((`test`.`test`.`t4` = 1) and (`test`.`test`.`t2` = 5))
+optimize table test;
+Table	Op	Msg_type	Msg_text
+test.test	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.test	optimize	status	OK
+explain select * from test where t2 = 5 and t4 = 1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	test	NULL	ref	i1,i2	i2	8	const,const	1	100.00	NULL
+Warnings:
+Note	1003	/* select#1 */ select `test`.`test`.`t1` AS `t1`,`test`.`test`.`t2` AS `t2`,`test`.`test`.`t3` AS `t3`,`test`.`test`.`t4` AS `t4` from `test`.`test` where ((`test`.`test`.`t4` = 1) and (`test`.`test`.`t2` = 5))
